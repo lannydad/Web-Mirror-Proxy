@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>网页镜像 · 把任意站点穿进一个域名</title>
+<meta name="description" content="输入的网址经由本站反向代理与链接改写，页面、脚本、样式全部走同一个域名，无需插件。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c5cff'/%3E%3Cstop offset='1' stop-color='%23c084fc'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M16 7l7 9-7 9-7-9z' fill='white' opacity='.92'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#0a0910;
+    --ink:#efedf7;
+    --mute:#9297ad;
+    --line:rgba(255,255,255,.09);
+    --card:rgba(255,255,255,.045);
+    --violet:#7c5cff;
+    --fuchsia:#c084fc;
+    --radius:20px;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
+    font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    letter-spacing:.01em;overflow-x:hidden;
+  }
+  /* ---------- 背景 ---------- */
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .bg .orb{position:absolute;border-radius:50%;filter:blur(90px);opacity:.55}
+  .o1{width:620px;height:620px;left:-180px;top:-260px;background:radial-gradient(circle,#5b3cff 0%,transparent 70%)}
+  .o2{width:560px;height:560px;right:-160px;top:-120px;background:radial-gradient(circle,#9b4dff 0%,transparent 72%);opacity:.42}
+  .o3{width:700px;height:420px;left:35%;bottom:-260px;background:radial-gradient(circle,#2b1e5e 0%,transparent 75%);opacity:.5}
+  .bg .grid{
+    position:absolute;inset:0;opacity:.5;
+    background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),
+                      linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);
+    background-size:56px 56px;
+    mask-image:radial-gradient(ellipse 80% 60% at 50% 0%,#000 25%,transparent 78%);
+    -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 0%,#000 25%,transparent 78%);
+  }
+
+  .wrap{position:relative;z-index:1;max-width:1040px;margin:0 auto;padding:0 22px 70px}
+
+  /* ---------- 顶栏 ---------- */
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:26px 0 0}
+  .brand{display:flex;align-items:center;gap:12px}
+  .mark{width:38px;height:38px;flex:none;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--violet),var(--fuchsia));border-radius:11px;
+    box-shadow:0 8px 26px rgba(124,92,255,.4)}
+  .mark svg{width:17px;height:17px}
+  .brand b{display:block;font-size:16px;font-weight:650;line-height:1.2}
+  .brand span{font-size:11.5px;color:var(--mute);letter-spacing:.14em;text-transform:uppercase}
+  .navright{display:flex;align-items:center;gap:10px}
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
+    font-size:12.5px;color:#cfc9e8;background:rgba(255,255,255,.05);border:1px solid var(--line)}
+  .dot{width:7px;height:7px;border-radius:50%;background:#22d3a5;box-shadow:0 0 0 3px rgba(34,211,165,.15)}
+  .dot.off{background:#f2687b;box-shadow:0 0 0 3px rgba(242,104,123,.15)}
+  .ghost{font-size:13px;color:var(--mute);text-decoration:none;padding:6px 8px;border-radius:8px;transition:.2s}
+  .ghost:hover{color:#fff;background:rgba(255,255,255,.06)}
+
+  /* ---------- Hero ---------- */
+  .hero{padding:64px 0 8px;text-align:center}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;padding:5px 13px;margin-bottom:22px;
+    border-radius:999px;font-size:12.5px;color:#c7bdf0;background:rgba(124,92,255,.12);
+    border:1px solid rgba(124,92,255,.28)}
+  .eyebrow i{width:6px;height:6px;border-radius:50%;background:var(--fuchsia)}
+  h1{margin:0 0 16px;font-size:clamp(27px,4.4vw,44px);line-height:1.25;font-weight:700;letter-spacing:-.015em}
+  h1 em{font-style:normal;background:linear-gradient(100deg,#a78bfa,#e9d5ff 45%,#7c5cff);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{margin:0 auto 38px;max-width:620px;color:var(--mute);font-size:14.5px;line-height:1.85}
+
+  /* ---------- 输入条 ---------- */
+  form.bar{display:flex;align-items:center;gap:10px;max-width:760px;margin:0 auto;
+    padding:9px 9px 9px 18px;border-radius:16px;background:rgba(18,16,28,.82);
+    border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(14px);
+    box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05);
+    transition:border-color .22s,box-shadow .22s}
+  form.bar:focus-within{border-color:rgba(124,92,255,.62);
+    box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 0 4px rgba(124,92,255,.16)}
+  .lead{display:inline-flex;align-items:center;gap:6px;flex:none;font:12px/1 ui-monospace,Menlo,Consolas,monospace;
+    color:#857ea6;padding-right:12px;border-right:1px solid var(--line);max-width:34%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  input#q{flex:1;min-width:0;border:0;background:none;color:var(--ink);font-size:15px;padding:11px 2px;outline:none}
+  input#q::placeholder{color:#5d5a72}
+  .go{flex:none;display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border:0;border-radius:11px;
+    background:linear-gradient(135deg,#7c5cff,#a855f7);color:#fff;font-weight:650;font-size:14px;cursor:pointer;
+    box-shadow:0 10px 26px rgba(124,92,255,.32);transition:transform .16s,box-shadow .16s,filter .16s}
+  .go:hover{transform:translateY(-1px);filter:brightness(1.07)}
+  .go:active{transform:translateY(0) scale(.985)}
+  .go svg{width:14px;height:14px}
+
+  .hint{margin:18px auto 0;max-width:760px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;
+    font-size:12.5px;color:#767289;align-items:center}
+  .hint b{font-weight:500;color:#6d6885}
+  .hint button{border:1px dashed rgba(255,255,255,.14);background:rgba(255,255,255,.03);color:#b4abdc;
+    font-size:12.5px;padding:4px 11px;border-radius:8px;cursor:pointer;transition:.18s}
+  .hint button:hover{border-color:rgba(124,92,255,.55);color:#fff;background:rgba(124,92,255,.16)}
+  .err{margin:16px auto 0;max-width:760px;font-size:13px;color:#ff9aa6;min-height:20px}
+
+  /* ---------- 卡片区 ---------- */
+  .panels{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;margin-top:52px}
+  @media (max-width:820px){.panels{grid-template-columns:1fr}}
+  .card{padding:24px 26px 26px;border-radius:var(--radius);background:var(--card);
+    border:1px solid var(--line);backdrop-filter:blur(10px);box-shadow:0 18px 50px rgba(0,0,0,.32)}
+  .card h2{margin:0 0 18px;font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    color:#9d96bc;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .card h2 .mini{border:0;background:none;color:#726c8c;font-size:12px;cursor:pointer;letter-spacing:0;
+    text-transform:none;padding:4px 6px;border-radius:6px;transition:.18s}
+  .card h2 .mini:hover{color:#f2687b;background:rgba(242,104,123,.1)}
+
+  .quick{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .qlink{display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:11px;cursor:pointer;
+    background:rgba(255,255,255,.028);border:1px solid rgba(255,255,255,.06);
+    color:#ded8f5;font-size:13.5px;text-align:left;transition:.18s}
+  .qlink:hover{background:rgba(124,92,255,.14);border-color:rgba(124,92,255,.4);transform:translateY(-1px)}
+  .qlink i{width:8px;height:8px;border-radius:2px;flex:none;background:linear-gradient(135deg,#7c5cff,#c084fc);opacity:.85}
+  .qlink span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .qlink small{display:block;font-size:11px;color:#78738f;font-weight:400;letter-spacing:0}
+
+  .hist{list-style:none;margin:0;padding:0;max-height:246px;overflow:auto}
+  .hist::-webkit-scrollbar{width:6px}
+  .hist::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:6px}
+  .hrow{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px dashed rgba(255,255,255,.06)}
+  .hrow:last-child{border-bottom:0}
+  .hrow a{flex:1;min-width:0;text-decoration:none;color:#ddd7f4;font-size:13.5px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hrow a:hover{color:#fff;text-decoration:underline;text-decoration-color:rgba(160,140,255,.7)}
+  .hrow time{flex:none;font-size:11.5px;color:#6f6a86}
+  .hrow .cp{border:0;background:none;color:#7b7593;cursor:pointer;padding:3px 5px;border-radius:5px;line-height:0}
+  .hrow .cp:hover{color:#b9a7ff;background:rgba(124,92,255,.14)}
+  .empty{padding:26px 0;text-align:center;color:#66627c;font-size:13px}
+
+  /* ---------- 说明 ---------- */
+  .how{margin-top:18px}
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media (max-width:820px){.steps{grid-template-columns:1fr}}
+  .step{padding:16px 18px;border-radius:13px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06)}
+  .step b{display:block;font-size:12px;color:#a78bfa;letter-spacing:.1em;margin-bottom:7px}
+  .step p{margin:0;font-size:13px;color:#9b96b0;line-height:1.72}
+  .step code{font:12px/1.6 ui-monospace,Menlo,Consolas,monospace;color:#c3b5ff;background:rgba(124,92,255,.1);
+    padding:2px 6px;border-radius:5px}
+
+  footer{margin-top:44px;padding-top:24px;border-top:1px solid rgba(255,255,255,.06);
+    text-align:center;font-size:12.5px;color:#6b6680;line-height:2}
+  footer a{color:#8a83a8;text-decoration:none}
+  footer a:hover{color:#c9bfff}
+  footer .sep{margin:0 9px;color:#403d52}
+
+  .toast{position:fixed;left:50%;bottom:34px;transform:translate(-50%,16px);z-index:50;
+    padding:10px 18px;border-radius:11px;font-size:13px;color:#fff;
+    background:rgba(28,24,44,.94);border:1px solid rgba(124,92,255,.4);
+    box-shadow:0 14px 40px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:.28s}
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div class="bg"><span class="orb o1"></span><span class="orb o2"></span><span class="orb o3"></span><div class="grid"></div></div>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l8 9-8 9-8-9z" fill="#fff" opacity=".95"/></svg>
+      </div>
+      <div><b>网页镜像</b><span>Proxy Mirror</span></div>
+    </div>
+    <div class="navright">
+      <span class="pill"><i class="dot" id="dot"></i><span id="status">连接中…</span></span>
+      <a class="ghost" href="https://github.com/lannydad/Web-Mirror-Proxy" target="_blank" rel="noreferrer">项目主页 ↗</a>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow"><i></i>跨境直达 · 一个域名装下所有站点</div>
+    <h1>想去的地方，都收进<br>这层<em>镜像</em>里</h1>
+    <p class="sub">粘贴任意站点地址，页面、脚本、样式里的链接会被服务端改写回本域。跨境查资料、比对海外原站，地址栏始终只有一个域名——不装插件，不改 DNS，也不用开端口。</p>
+
+    <form class="bar" id="form" autocomplete="off">
+      <span class="lead" id="lead">example.com</span>
+      <input id="q" placeholder="粘贴网址，或直接输入域名 …" spellcheck="false">
+      <button class="go" type="submit">访问
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h13M13 6l6 6-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </form>
+
+    <div class="hint">
+      <b>试试：</b>
+      <button data-fill="developer.mozilla.org/zh-CN/">MDN 中文文档</button>
+      <button data-fill="github.com">GitHub</button>
+      <button data-fill="npmjs.com">npm</button>
+      <button data-fill="nodejs.org/en">Node.js</button>
+      <button data-fill="tailwindcss.com">Tailwind</button>
+    </div>
+    <div class="err" id="err"></div>
+  </section>
+
+  <section class="panels">
+    <div class="card">
+      <h2>常用站点</h2>
+      <div class="quick" id="quick"></div>
+    </div>
+    <div class="card">
+      <h2>访问记录 <button class="mini" id="clear" type="button">清空</button></h2>
+      <ul class="hist" id="hist"></ul>
+    </div>
+  </section>
+
+  <section class="card how">
+    <h2>怎么用</h2>
+    <div class="steps">
+      <div class="step">
+        <b>01 / 输入</b>
+        <p>支持完整 URL 或裸域名，<code>https://</code>、尾部斜杠都会被自动处理。</p>
+      </div>
+      <div class="step">
+        <b>02 / 跳转</b>
+        <p>按 <code>/域名/路径</code> 规则进入镜像地址，形如 <code>/developer.mozilla.org/</code>。</p>
+      </div>
+      <div class="step">
+        <b>03 / 浏览</b>
+        <p>页面内的链接、图片、样式会继续留在本域，导航不会跳出镜像。</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div>© <span id="year">2026</span> 网页镜像 · 仅做页面内容转发，不在服务器留存任何浏览数据</div>
+    <div>
+      <a href="/health" target="_blank">服务状态</a>
+    </div>
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  var KEY = "rp_history_v1";
+  var $ = function(id){ return document.getElementById(id); };
+  var q = $("q"), form = $("form"), errBox = $("err"), toastEl = $("toast");
+
+  var QUICK = [
+    { name:"MDN 文档", url:"developer.mozilla.org/zh-CN/", tag:"前端手册" },
+    { name:"GitHub", url:"github.com", tag:"代码托管" },
+    { name:"npm", url:"npmjs.com", tag:"包仓库" },
+    { name:"Node.js", url:"nodejs.org/en", tag:"运行时" },
+    { name:"Tailwind CSS", url:"tailwindcss.com", tag:"样式框架" },
+    { name:"React", url:"react.dev", tag:"组件库" },
+    { name:"Docker Docs", url:"docs.docker.com", tag:"容器" },
+    { name:"MDN Web API", url:"developer.mozilla.org/en-US/docs/Web/API", tag:"接口索引" }
+  ];
+
+  /* ---------- 工具 ---------- */
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add("on");
+    clearTimeout(toastEl._t);
+    toastEl._t = setTimeout(function(){ toastEl.classList.remove("on"); }, 1800);
+  }
+
+  /** 把用户输入规范化成 {host, path} */
+  function normalize(input){
+    var s = String(input || "").trim();
+    if (!s) return null;
+    s = s.replace(/^[\s"'<>]+|[\s"'<>]+$/g, "");
+    s = s.replace(/^https?:\/\//i, "");
+    // 去掉可能粘贴的多余协议片段
+    s = s.replace(/^(?:www\.)?([^\/]+)/, function(m){ return m; });
+    var m = s.match(/^([^\/?#]+)([\/?#].*)?$/);
+    if (!m) return null;
+    var host = m[1].toLowerCase().replace(/\.$/, "");
+    var path = m[2] || "/";
+    if (path.charAt(0) === "?") path = "/" + path;
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(host)) return null;
+    if (host === location.host.toLowerCase()) return null; // 别镜像自己
+    if (path.charAt(0) !== "/") path = "/" + path;
+    return { host: host, path: path };
+  }
+
+  function buildUrl(t){ return "/" + t.host + t.path; }
+
+  /* ---------- 历史 ---------- */
+  function readHist(){
+    try { return JSON.parse(localStorage.getItem(KEY) || "[]") || []; } catch(e){ return []; }
+  }
+  function writeHist(list){
+    try { localStorage.setItem(KEY, JSON.stringify(list.slice(0, 20))); } catch(e){}
+  }
+  function pushHist(t){
+    var list = readHist().filter(function(i){ return !(i.host === t.host && i.path === t.path); });
+    list.unshift({ host:t.host, path:t.path, ts: Date.now() });
+    writeHist(list);
+    renderHist();
+  }
+  function fmtTime(ts){
+    var d = new Date(ts), now = Date.now(), diff = (now - ts) / 1000;
+    if (diff < 60) return "刚刚";
+    if (diff < 3600) return Math.floor(diff/60) + " 分钟前";
+    if (diff < 86400) return Math.floor(diff/3600) + " 小时前";
+    return (d.getMonth()+1) + "月" + d.getDate() + "日";
+  }
+  function renderHist(){
+    var list = readHist(), box = $("hist");
+    if (!list.length){
+      box.innerHTML = '<li class="empty">还没有记录，先访问一个站点吧</li>';
+      return;
+    }
+    box.innerHTML = list.map(function(i){
+      var url = "/" + i.host + i.path;
+      return '<li class="hrow">' +
+        '<a href="' + url + '">' + i.host + (i.path !== "/" ? i.path : "") + '</a>' +
+        '<time>' + fmtTime(i.ts) + '</time>' +
+        '<button class="cp" type="button" data-copy="' + esc(url) + '" title="复制链接">' +
+          '<svg viewBox="0 0 24 24" width="15" height="15" fill="none">' +
+          '<rect x="9" y="9" width="11" height="11" rx="2.5" stroke="currentColor" stroke-width="1.6"/>' +
+          '<path d="M15 6.5V5.5A2.5 2.5 0 0 0 12.5 3H5.5A2.5 2.5 0 0 0 3 5.5v7A2.5 2.5 0 0 0 5.5 15H6.5" stroke="currentColor" stroke-width="1.6"/>' +
+          '</svg></button></li>';
+    }).join("");
+  }
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]; }); }
+
+  /* ---------- 快捷入口 ---------- */
+  function renderQuick(){
+    $("quick").innerHTML = QUICK.map(function(item){
+      var t = normalize(item.url);
+      var href = t ? buildUrl(t) : "#";
+      return '<a class="qlink" href="' + href + '"><i></i><span>' + esc(item.name) +
+        '<small>' + esc(item.tag) + '</small></span></a>';
+    }).join("");
+  }
+
+  /* ---------- 提交 ---------- */
+  function go(value){
+    var t = normalize(value);
+    if (!t){
+      errBox.textContent = "地址看起来不对：需要是 example.com 或 https://example.com/路径 这样的形式。";
+      q.focus();
+      return false;
+    }
+    errBox.textContent = "";
+    pushHist(t);
+    location.href = buildUrl(t);
+    return true;
+  }
+
+  form.addEventListener("submit", function(e){
+    e.preventDefault();
+    go(q.value);
+  });
+  q.addEventListener("input", function(){ errBox.textContent = ""; });
+
+  document.querySelectorAll("[data-fill]").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      q.value = btn.dataset.fill;
+      q.focus();
+    });
+  });
+
+  $("hist").addEventListener("click", function(e){
+    var cp = e.target.closest("[data-copy]");
+    if (!cp) return;
+    e.preventDefault();
+    var text = location.origin + cp.dataset.copy;
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ toast("链接已复制"); },
+        function(){ toast("复制失败，请手动选择"); });
+    } else {
+      var ta = document.createElement("textarea");
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); toast("链接已复制"); } catch(e2){ toast("复制失败"); }
+      document.body.removeChild(ta);
+    }
+  });
+
+  $("clear").addEventListener("click", function(){
+    writeHist([]); renderHist(); toast("记录已清空");
+  });
+
+  document.addEventListener("keydown", function(e){
+    if (e.key === "/" && document.activeElement !== q){
+      e.preventDefault(); q.focus();
+    }
+  });
+
+  /* ---------- 状态 ---------- */
+  function checkStatus(){
+    var t0 = performance.now();
+    fetch("/health", { cache: "no-store" })
+      .then(function(r){ return r.json(); })
+      .then(function(){
+        var ms = Math.round(performance.now() - t0);
+        $("dot").classList.remove("off");
+        $("status").textContent = "在线 · " + ms + "ms";
+      })
+      .catch(function(){
+        $("dot").classList.add("off");
+        $("status").textContent = "连接异常";
+      });
+  }
+
+  fetch("/api/info", { cache: "no-store" })
+    .then(function(r){ return r.json(); })
+    .then(function(info){
+      var lead = $("lead");
+      lead.textContent = info.proxyHost + "/";
+      lead.dataset.host = info.proxyHost;
+      lead.title = "本站代理入口：" + location.origin + "/";
+    })
+    .catch(function(){ $("lead").textContent = location.host + "/"; });
+
+  $("year").textContent = new Date().getFullYear();
+  renderQuick();
+  renderHist();
+  checkStatus();
+  q.focus();
+})();
+</script>
+</body>
+</html>

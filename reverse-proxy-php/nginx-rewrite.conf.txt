@@ -1,0 +1,27 @@
+# 宝塔伪静态规则（复制到：网站 → 设置 → 伪静态 → 粘贴保存）
+#
+# 为什么需要第二段（很重要）：
+# 宝塔默认站点配置里自带这两个正则 location：
+#     location ~ .*\.(gif|jpg|jpeg|png|bmp|swf)$ { expires 30d; }
+#     location ~ .*\.(js|css)?$                 { expires 12h; }
+# 正则 location 的优先级高于 location /，所以带 .css / .js / 图片后缀的请求
+# 不会被交给 index.php，而是直接去磁盘找文件 —— 代理出来的样式、脚本、图片
+# 就全部 404（表现就是：页面能打开，但样式全丢、JS 全不执行）。
+# 下面第二段用同样的正则把它们抢回来，全部转给 index.php。
+
+location / {
+    try_files $uri $uri/ /index.php?$query_string;
+}
+
+location ~ .*\.(js|css|png|jpg|jpeg|gif|webp|svg|ico|bmp|swf|woff|woff2|ttf|otf|eot|map|json|xml|txt|mp4|webm|webmanifest)$ {
+    try_files $uri $uri/ /index.php?$query_string;
+}
+
+# 如果保存伪静态后，CSS/JS 仍然 404，说明你站点配置里那两段 location 排在
+# 伪静态 include 之前。此时到「网站 → 设置 → 配置文件」，把这两块：
+#     location ~ .*\.(gif|jpg|jpeg|png|bmp|swf)$ { expires 30d; }
+#     location ~ .*\.(js|css)?$ { expires 12h; }
+# 改成：
+#     location ~ .*\.(gif|jpg|jpeg|png|bmp|swf)$ { try_files $uri $uri/ /index.php?$query_string; }
+#     location ~ .*\.(js|css)?$ { try_files $uri $uri/ /index.php?$query_string; }
+# 或者干脆把这两块整段删掉（代理站不需要本地静态缓存）。

@@ -1,0 +1,17 @@
+{
+  "name": "reverse-proxy-node",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "reverse-proxy-cf 的 Node 版实现，可直接跑在宝塔的 Node 项目里",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

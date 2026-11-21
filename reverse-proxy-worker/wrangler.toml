@@ -1,0 +1,7 @@
+name = "reverse-proxy"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# 不写死域名：worker 会自动从请求里取当前 Host，
+# 所以 *.workers.dev 和自定义域名都能直接用。
+# 如需绑定自定义域名，在 Cloudflare 后台 Workers → 你的 Worker → Settings → Domains & Routes 里加。
